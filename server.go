@@ -31,11 +31,11 @@ func (s *Server) AcceptConnections() {
 		conn.Write([]byte("Enter username: "))
 		input, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
-			log.Printf("unable to read from connection: %v",err)
+			log.Printf("unable to read from connection: %v", err)
 			continue
 		}
 		username := strings.Trim(input, "\r\n")
-		s.clients.Store(username, conn)
+		s.clients.Store(conn, username)
 
 		go s.ReadMessage(conn, username)
 	}
@@ -50,18 +50,19 @@ func (s *Server) ReadMessage(conn net.Conn, user string) {
 			log.Printf("unable to read from connection: %v", err)
 			break
 		}
-		
+
 		message := strings.Trim(input, "\r\n")
-		s.Broadcast(message, user)
+		s.Broadcast(message, conn)
 	}
 }
 
-func (s *Server) Broadcast(message string, user string) {
+func (s *Server) Broadcast(body string, conn net.Conn) {
+	user, _ := s.clients.Load(conn)
 	s.clients.Range(func(key, value interface{}) bool {
-		username := key.(string)
-		conn := value.(net.Conn)
-		if username != user {
-			conn.Write([]byte(fmt.Sprintf("%s> %s\n", user, message)))
+		userConn := key.(net.Conn)
+		if userConn != conn {
+			message := fmt.Sprintf("%s@%v> %s\n", user, conn.RemoteAddr(), body)
+			userConn.Write([]byte(message))
 		}
 		return true
 	})
