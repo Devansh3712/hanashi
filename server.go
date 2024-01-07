@@ -37,11 +37,11 @@ func (s *Server) AcceptConnections() {
 		username := strings.Trim(input, "\r\n")
 		s.clients.Store(conn, username)
 
-		go s.ReadMessage(conn, username)
+		go s.ReadMessage(conn)
 	}
 }
 
-func (s *Server) ReadMessage(conn net.Conn, user string) {
+func (s *Server) ReadMessage(conn net.Conn) {
 	defer conn.Close()
 
 	for {
