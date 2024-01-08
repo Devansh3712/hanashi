@@ -8,6 +8,16 @@ import (
 	"strings"
 )
 
+const (
+	CMD_HELP = ":h"
+	CMD_QUIT = ":q"
+	CMD_WRITE = ":w"
+
+	HELP = "Commands\n" +
+	"  :w\tWrite to the server\n" + 
+	"  :q\tQuit connection\n"
+)
+
 func (s *Server) Start() {
 	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
@@ -38,26 +48,39 @@ func (s *Server) AcceptConnections() {
 		s.clients.Store(conn, username)
 
 		go s.ReadMessage(conn)
-		go s.Broadcast()
+		go s.BroadcastMessage()
 	}
 }
 
 func (s *Server) ReadMessage(conn net.Conn) {
 	defer conn.Close()
 
+	loop:
 	for {
 		input, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
 			log.Printf("unable to read from connection: %v", err)
 			break
 		}
+		input = strings.Trim(input, "\r\n")
 
-		body := strings.Trim(input, "\r\n")
-		s.messages <- Message{from: conn, body: body}
+		args := strings.Split(input, " ")
+		switch args[0] {
+		case CMD_HELP:
+			conn.Write([]byte(HELP))
+		case CMD_QUIT:
+			conn.Write([]byte("[+] Terminating connection\n"))
+			s.clients.Delete(conn)
+			break loop
+		case CMD_WRITE:
+			s.messages <- Message{from: conn, body: input[3:]}
+		default:
+			conn.Write([]byte("[-] Invalid command, use :h for list of commands\n"))
+		}
 	}
 }
 
-func (s *Server) Broadcast() {
+func (s *Server) BroadcastMessage() {
 	for {
 		message := <-s.messages
 		user, _ := s.clients.Load(message.from)
