@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	CMD_HELP = ":h"
-	CMD_QUIT = ":q"
+	CMD_HELP  = ":h"
+	CMD_QUIT  = ":q"
 	CMD_WRITE = ":w"
 
 	HELP = "Commands\n" +
-	"  :w\tWrite to the server\n" + 
-	"  :q\tQuit connection\n"
+		"  :w\tWrite to the server\n" +
+		"  :q\tQuit connection\n"
 )
 
 func (s *Server) Start() {
@@ -26,11 +26,14 @@ func (s *Server) Start() {
 	defer listener.Close()
 	s.listener = listener
 
+	s.wg.Add(1)
 	go s.AcceptConnections()
-	<-s.quit
+	s.wg.Wait()
 }
 
 func (s *Server) AcceptConnections() {
+	defer s.wg.Done()
+
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -55,7 +58,7 @@ func (s *Server) AcceptConnections() {
 func (s *Server) ReadMessage(conn net.Conn) {
 	defer conn.Close()
 
-	loop:
+loop:
 	for {
 		input, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
@@ -101,7 +104,6 @@ func (s *Server) BroadcastMessage() {
 func NewServer(addr string) *Server {
 	return &Server{
 		addr:     addr,
-		quit:     make(chan struct{}),
 		messages: make(chan Message),
 	}
 }

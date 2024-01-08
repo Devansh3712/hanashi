@@ -11,9 +11,9 @@ type Message struct {
 }
 
 type Server struct {
+	wg       sync.WaitGroup
 	addr     string
 	listener net.Listener
-	quit     chan struct{}
 	clients  sync.Map
 	messages chan Message
 }
