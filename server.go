@@ -38,6 +38,7 @@ func (s *Server) AcceptConnections() {
 		s.clients.Store(conn, username)
 
 		go s.ReadMessage(conn)
+		go s.Broadcast()
 	}
 }
 
@@ -51,27 +52,34 @@ func (s *Server) ReadMessage(conn net.Conn) {
 			break
 		}
 
-		message := strings.Trim(input, "\r\n")
-		s.Broadcast(message, conn)
+		body := strings.Trim(input, "\r\n")
+		s.messages <- Message{from: conn, body: body}
 	}
 }
 
-func (s *Server) Broadcast(body string, conn net.Conn) {
-	user, _ := s.clients.Load(conn)
-	s.clients.Range(func(key, value interface{}) bool {
-		userConn := key.(net.Conn)
-		if userConn != conn {
-			message := fmt.Sprintf("%s@%v> %s\n", user, conn.RemoteAddr(), body)
-			userConn.Write([]byte(message))
-		}
-		return true
-	})
+func (s *Server) Broadcast() {
+	for {
+		message := <-s.messages
+		user, _ := s.clients.Load(message.from)
+		s.clients.Range(func(key, value interface{}) bool {
+			conn := key.(net.Conn)
+			if conn != message.from {
+				output := fmt.Sprintf(
+					"%s@%v> %s\n",
+					user, message.from.RemoteAddr(), message.body,
+				)
+				conn.Write([]byte(output))
+			}
+			return true
+		})
+	}
 }
 
 func NewServer(addr string) *Server {
 	return &Server{
-		addr: addr,
-		quit: make(chan struct{}),
+		addr:     addr,
+		quit:     make(chan struct{}),
+		messages: make(chan Message),
 	}
 }
 
